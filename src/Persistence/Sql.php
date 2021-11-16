@@ -567,7 +567,7 @@ class Sql extends Persistence
             $st = $insert->execute();
         } catch (DsqlException $e) {
             throw (new Exception('Unable to execute insert query', 0, $e))
-                ->addMoreInfo('query', $insert->getDebugQuery())
+                ->addMoreInfo('query', preg_replace_callback('~[\x80-\xff]~', fn ($matches) => '\x' . bin2hex($matches[0]), mb_substr($insert->getDebugQuery(), 0, 4096) . (mb_strlen($insert->getDebugQuery()) > 4096 ? '...' : '')))
                 ->addMoreInfo('message', $e->getMessage())
                 ->addMoreInfo('model', $model)
                 ->addMoreInfo('scope', $model->getModel(true)->scope()->toWords());

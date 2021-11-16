@@ -579,7 +579,7 @@ class Expression implements Expressionable, \ArrayAccess
 
                 $new = (new ExecuteException('Dsql execute error', $errorInfo[1] ?? 0, $e))
                     ->addMoreInfo('error', $errorInfo[2] ?? 'n/a (' . $errorInfo[0] . ')')
-                    ->addMoreInfo('query', $this->getDebugQuery());
+                    ->addMoreInfo('query', preg_replace_callback('~[\x80-\xff]~', fn ($matches) => '\x' . bin2hex($matches[0]), mb_substr($this->getDebugQuery(), 0, 4096) . (mb_strlen($this->getDebugQuery()) > 4096 ? '...' : '')));
 
                 throw $new;
             }
