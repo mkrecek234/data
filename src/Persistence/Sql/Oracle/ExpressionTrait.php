@@ -2,36 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Atk4\Data\Persistence\Sql\Mssql;
+namespace Atk4\Data\Persistence\Sql\Oracle;
 
 use Doctrine\DBAL\Result as DbalResult;
+use Atk4\Data\Persistence;
 
 trait ExpressionTrait
 {
-    protected function escapeIdentifier(string $value): string
-    {
-        return $this->fixOpenEscapeChar(parent::escapeIdentifier($value));
-    }
-
-    protected function escapeIdentifierSoft(string $value): string
-    {
-        return $this->fixOpenEscapeChar(parent::escapeIdentifierSoft($value));
-    }
-
-    private function fixOpenEscapeChar(string $v): string
-    {
-        return preg_replace('~(?:\'(?:\'\'|\\\\\'|[^\'])*\')?+\K\]([^\[\]\'"(){}]*?)\]~s', '[$1]', $v);
-    }
-
-    private function _render(): string
-    {
-        // convert all SQL strings to NVARCHAR, eg 'text' to N'text'
-        return preg_replace_callback('~(^|.)(\'(?:\'\'|\\\\\'|[^\'])*\')~s', function ($matches) {
-            return $matches[1] . (!in_array($matches[1], ['N', '\'', '\\'], true) ? 'N' : '') . $matches[2];
-        }, parent::render());
-    }
-
-    // {{{ MSSQL does not support named parameters, so convert them to numerical inside execute
+    // {{{ Oracle has broken support for CLOB/BLOB parameters, so convert string parameters to string literals
 
     /** @var array|null */
     private $queryParamsBackup;
@@ -49,17 +27,38 @@ trait ExpressionTrait
 
         $this->queryParamsBackup = $this->params;
         try {
-            $newParams = [];
+            $newParams = $this->params;
             $i = 0;
             $j = 0;
             $this->queryRender = preg_replace_callback(
                 '~(?:\'(?:\'\'|\\\\\'|[^\'])*\')?+\K(?:\?|:\w+)~s',
                 function ($matches) use (&$newParams, &$i, &$j) {
-                    $newParams[++$i] = $this->params[$matches[0] === '?' ? ++$j : $matches[0]];
+                    $val = $this->params[$matches[0] === '?' ? ++$j : $matches[0]];
 
-                    return '?';
+                    if (is_string($val)) {
+
+
+//                        $isBinary = false;
+//                        $dummyPersistence = new Persistence\Sql($this->connection);
+//                        if (\Closure::bind(fn () => $dummyPersistence->binaryTypeValueIsEncoded($val), null, Persistence\Sql::class)()) {
+//                            $val = \Closure::bind(fn () => $dummyPersistence->binaryTypeValueDecode($val), null, Persistence\Sql::class)();
+//                            $isBinary = true;
+//                        }
+//
+//
+//
+//                        if ($isBinary) {
+//                            return 'rawtohex(\'' . str_replace('\'', '\'\'', $val) . '\')'; // TODO check escaping
+//                        }
+
+                        return '\'' . str_replace('\'', '\'\'', $val) . '\''; // TODO check escaping
+                    }
+
+                    $newParams[$matches[0] === '?' ? ++$i : $matches[0]] = $val;
+
+                    return $matches[0];
                 },
-                $this->_render()
+                parent::render()
             );
             $this->params = $newParams;
 
@@ -77,7 +76,7 @@ trait ExpressionTrait
             return $this->queryRender;
         }
 
-        return $this->_render();
+        return parent::render();
     }
 
     public function getDebugQuery(): string
