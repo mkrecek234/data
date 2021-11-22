@@ -200,18 +200,17 @@ class ModelTest extends TestCase
 //        $this->db->connection->connection()->getWrappedConnection()->prepare('insert into "tt" ("id", "v") values (1, \'' . $v . '\')')->execute();
 
         // insert with bindValue
-        $v = $this->makePseudoRandomString(false, 9_38/*7*/);
+        $v2x = $this->makePseudoRandomString(false, 40_000);
 
-//        $st = $this->db->connection->connection()->getWrappedConnection()->prepare('insert into "tt" ("id", "v") values (1, :a)');
-//        $st->bindParam('a', $v, \PDO::PARAM_STR, strlen($v));
-        $st = $this->db->connection->connection()->getWrappedConnection()->prepare('insert into "tt" ("id", "v") values (1, \'' . $v . '\')');
+        $st = $this->db->connection->connection()->getWrappedConnection()->prepare('insert into "tt" ("id", "v") values (1, :a)');
+        $st->bindParam('a', $v2x, \PDO::PARAM_STR, strlen($v2x));
         $st->execute();
 
         // select
         // https://bugs.php.net/bug.php?id=60994
         // https://bugs.php.net/bug.php?id=81650
         // https://github.com/php/php-src/pull/5233
-        $rCount = 20;
+        $rCount = 5;
         $repeatConcatFx = function (int $times) use (&$repeatConcatFx) {
             if ($times === 1) {
                 return 'concat(\',,,,\', "v")';
@@ -219,16 +218,39 @@ class ModelTest extends TestCase
 
             return 'concat(' . $repeatConcatFx(intdiv($times, 2)) . ', ' . $repeatConcatFx($times - intdiv($times, 2)) . ')';
         };
-        $res = $this->db->connection->connection()->getWrappedConnection()->prepare('select "v", ' . $repeatConcatFx($rCount) . ' as "vj" from "tt"')->execute();
+        $selectBy8KbytesChunksFx = function (string $expr, $alias, int $maxLengthChars) {
+            $chunkLengthBytes = 2048;
+            $maxChunkCount = ceil($maxLengthChars * 4 / $chunkLengthBytes); // up too 4 bytes per char
+            return implode(', ', array_map(function (int $i) use ($alias, $expr, $chunkLengthBytes) {
+                return 'dbms_lob.substr(' . $expr . ', ' . $chunkLengthBytes . ', ' . ($i * $chunkLengthBytes + 1) . ') as "' . $alias . '__chunk' . $i . '"';
+            }, range(0, $maxChunkCount - 1)));
+        };
+        $q = 'select ' . $selectBy8KbytesChunksFx('"v"', 'v', strlen($v2x)) . ', ' . $selectBy8KbytesChunksFx($repeatConcatFx($rCount), 'vj', strlen($v2x) * $rCount) . ' from "tt"';
+        $res = $this->db->connection->connection()->getWrappedConnection()->prepare($q)->execute();
         $rows = [];
-        while (($row = $res->fetchAssociative()) !== false) {
-            $rows[] = array_map(fn ($v) => is_resource($v) ? stream_get_contents($v) : $v, $row);
+        while (($rowRaw = $res->fetchAssociative()) !== false) {
+            $row = [];
+            foreach ($rowRaw as $k => $v) {
+                if (is_resource($v)) {
+                    $v = stream_get_contents($v);
+                }
+
+                if (preg_match('~^(.+)__chunk(\d+)$~s', $k, $matches)) {
+                    $kUnchunked = $matches[1];
+                    if ($matches[2] === '0') {
+                        $row[$kUnchunked] = '';
+                    }
+                    $row[$kUnchunked] .= $v;
+                }
+            }
+
+            $rows[] = $row;
         }
-        $v2Exp = str_repeat(',,,,' . $v, $rCount);
+        $v2Exp = str_repeat(',,,,' . $v2x, $rCount);
         $v2Sel = $rows[0]['vj'];
         var_dump(strlen($v2Exp));
         var_dump(strlen($v2Sel));
-        var_dump($rows[0]['v'] === $v);
+        var_dump($rows[0]['v'] === $v2x);
         var_dump($v2Sel === $v2Exp);
 
         exit;
