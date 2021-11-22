@@ -161,10 +161,13 @@ class ModelTest extends TestCase
                     $baseChars[crc32($lengthBytes . '_' . $i)] = mb_chr($iInt);
                 }
             }
-        }
+        }$baseChars = ['a', 'b', '9', '7', 'p', 'Z', 'ů'];
+        mt_srand(3);
         ksort($baseChars);
-
-        $res = str_repeat(implode('', $baseChars), intdiv($lengthBytes, count($baseChars)) + 1);
+        $s = [];
+        for ($i = 0; $i < $lengthBytes; $i++) {
+            $s[] = $baseChars[mt_rand(0, count($baseChars) - 1)];
+        }$res = implode('', $s);
         if ($isBinary) {
             return substr($res, 0, $lengthBytes);
         }
@@ -180,6 +183,55 @@ class ModelTest extends TestCase
         }
 
         return $res;
+    }
+
+
+    public function testCharacterTypeFieldLong2(): void
+    {
+        $this->debug = true;
+
+        try {
+        $this->db->connection->connection()->getWrappedConnection()->prepare('DROP TABLE "tt"')->execute();
+        } catch (\Exception $e) {}
+        $this->db->connection->connection()->getWrappedConnection()->prepare('CREATE TABLE "tt" ("id" NUMBER(10) NOT NULL, "v" CLOB DEFAULT NULL NULL, PRIMARY KEY("id"))')->execute();
+
+        // string literal insert seems limited to exactly 4000 bytes
+//        $v = $this->makePseudoRandomString(false, 4000);
+//        $this->db->connection->connection()->getWrappedConnection()->prepare('insert into "tt" ("id", "v") values (1, \'' . $v . '\')')->execute();
+
+        // insert with bindValue
+        $v = $this->makePseudoRandomString(false, 9_38/*7*/);
+
+//        $st = $this->db->connection->connection()->getWrappedConnection()->prepare('insert into "tt" ("id", "v") values (1, :a)');
+//        $st->bindParam('a', $v, \PDO::PARAM_STR, strlen($v));
+        $st = $this->db->connection->connection()->getWrappedConnection()->prepare('insert into "tt" ("id", "v") values (1, \'' . $v . '\')');
+        $st->execute();
+
+        // select
+        // https://bugs.php.net/bug.php?id=60994
+        // https://bugs.php.net/bug.php?id=81650
+        // https://github.com/php/php-src/pull/5233
+        $rCount = 20;
+        $repeatConcatFx = function (int $times) use (&$repeatConcatFx) {
+            if ($times === 1) {
+                return 'concat(\',,,,\', "v")';
+            }
+
+            return 'concat(' . $repeatConcatFx(intdiv($times, 2)) . ', ' . $repeatConcatFx($times - intdiv($times, 2)) . ')';
+        };
+        $res = $this->db->connection->connection()->getWrappedConnection()->prepare('select "v", ' . $repeatConcatFx($rCount) . ' as "vj" from "tt"')->execute();
+        $rows = [];
+        while (($row = $res->fetchAssociative()) !== false) {
+            $rows[] = array_map(fn ($v) => is_resource($v) ? stream_get_contents($v) : $v, $row);
+        }
+        $v2Exp = str_repeat(',,,,' . $v, $rCount);
+        $v2Sel = $rows[0]['vj'];
+        var_dump(strlen($v2Exp));
+        var_dump(strlen($v2Sel));
+        var_dump($rows[0]['v'] === $v);
+        var_dump($v2Sel === $v2Exp);
+
+        exit;
     }
 
     /**
@@ -225,11 +277,13 @@ class ModelTest extends TestCase
         $model->import([['v' => $str]]);
 
         $model->addCondition('v', $str);
+        $model->addField('l', new \Atk4\Data\Field\SqlExpressionField(['expr' => 'length("v")']));
         $rows = $model->export();
         $this->assertCount(1, $rows);
         $row = reset($rows);
         unset($rows);
-        $this->assertSame(['id', 'v'], array_keys($row));
+//        var_dump($row['l']);exit;
+//        $this->assertSame(['id', 'v'], array_keys($row));
         $this->assertSame(2, $row['id']);
         $this->assertSame(strlen($str), strlen($row['v']));
         $this->assertTrue($str === $row['v']);
