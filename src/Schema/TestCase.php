@@ -56,6 +56,10 @@ abstract class TestCase extends BaseTestCase
                         return;
                     }
 
+                    if (class_exists('SqlFormatter')) { // requires optional "jdorn/sql-formatter" package
+                        $sql = \SqlFormatter::format($sql, false);
+                    }
+
                     echo "\n" . $sql . "\n" . (is_array($params) ? print_r(array_map(function ($v) {
                         if (is_string($v) && strlen($v) > 4096) {
                             $v = '*long string* (length: ' . strlen($v) . ' bytes, sha256: ' . hash('sha256', $v) . ')';
