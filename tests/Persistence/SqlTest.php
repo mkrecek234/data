@@ -6,6 +6,7 @@ namespace Atk4\Data\Tests\Persistence;
 
 use Atk4\Data\Exception;
 use Atk4\Data\Model;
+use Atk4\Data\Persistence\Sql\Expression;
 use Atk4\Data\Schema\TestCase;
 
 class SqlTest extends TestCase
@@ -235,5 +236,68 @@ class SqlTest extends TestCase
             ['surname' => 'Smith'],
             ['surname' => 'Jones'],
         ], $m->export(['surname']));
+    }
+
+    public function testSameRowFieldStability(): void
+    {
+        $this->setDb([
+            'user' => [
+                1 => ['name' => 'John', 'surname' => 'Smith'],
+                2 => ['name' => 'Sarah', 'surname' => 'Jones'],
+            ],
+        ]);
+
+        if ($this->getDatabasePlatform() instanceof \Doctrine\DBAL\Platforms\MySQLPlatform) {
+            $randSqlFunc = 'rand()';
+        } elseif ($this->getDatabasePlatform() instanceof \Doctrine\DBAL\Platforms\SQLServerPlatform) {
+            $randSqlFunc = 'checksum(newid())';
+        } elseif ($this->getDatabasePlatform() instanceof \Doctrine\DBAL\Platforms\OraclePlatform) {
+            $randSqlFunc = 'dbms_random.random';
+        } else {
+            $randSqlFunc = 'random()';
+        }
+
+        $m = new Model($this->db, ['table' => 'user']);
+        $m->addField('name');
+        $m->addField('surname');
+        $m->addExpression('rand', $randSqlFunc);
+        $m->addExpression('rand_independent', $randSqlFunc);
+        $m->scope()->addCondition('rand', '!=', null);
+        $m->setOrder('rand');
+        $m->addExpression('rand2', new Expression('([] + 1) - 1', [$m->getField('rand')]));
+        $createSeedForSelfHasOne = function (Model $model, string $alias, $joinByFieldName) {
+            return ['model' => $model, 'table_alias' => $alias, 'our_field' => $joinByFieldName, 'their_field' => $joinByFieldName];
+        };
+//        $m->hasOne('one', $createSeedForSelfHasOne($m, 'one', 'name'))
+//            ->addField('rand3', 'rand2');
+//        $m->hasOne('one_one', $createSeedForSelfHasOne($m->ref('one'), 'one_one', 'surname'))
+//            ->addField('rand4', 'rand3');
+//        $manyModel = $m/*->ref('one')*/; // TODO MySQL Subquery returns more than 1 row
+//        $manyModel->addExpression('rand_many', ['expr' => $manyModel->getField('rand3')]);
+//        $m->hasMany('many_one', ['model' => $manyModel, 'our_field' => 'name', 'their_field' => 'name']);
+//        $m->hasOne('one_many_one', $createSeedForSelfHasOne($m->ref('many_one'), 'one_many_one', 'surname'))
+//            ->addField('rand5', 'rand_many');
+
+        $this->debug = true; // TODO
+
+        $export = $m->export();
+        $this->assertSame([0, 1], array_keys($export));
+        $randRow0 = $export[0]['rand'];
+        $randRow1 = $export[1]['rand'];
+        $this->assertNotSame($randRow0, $randRow1); // $this->assertGreaterThan($randRow0, $randRow1);
+        // TODO this can be the same, depending on how we implement it
+        // already stable under some circumstances on PostgreSQL http://sqlfiddle.com/#!17/4b040/4
+        // $this->assertNotSame($randRow0, $export[0]['rand_independent']);
+
+        $this->assertSame($randRow0, $export[0]['rand2']);
+        $this->assertSame($randRow1, $export[1]['rand2']);
+//        $this->assertSame($randRow0, $export[0]['rand3']);
+//        $this->assertSame($randRow1, $export[1]['rand3']);
+//        $this->assertSame($randRow0, $export[0]['rand4']);
+//        $this->assertSame($randRow1, $export[1]['rand4']);
+//        $this->assertSame($randRow0, $export[0]['rand5']);
+//        $this->assertSame($randRow1, $export[1]['rand5']);
+
+        // TODO test with hasOne group by
     }
 }
