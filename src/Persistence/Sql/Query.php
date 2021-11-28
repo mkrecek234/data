@@ -1093,6 +1093,24 @@ class Query extends Expression
 
     // {{{ Miscelanious
 
+    private function callParentRender(): array
+    {
+        $firstRender = parent::render();
+        if (($this->args['first_render'] ?? null) === null) {
+            $this->args['first_render'] = $firstRender;
+            $secondRender = $this->render();
+            if ($firstRender !== $secondRender && !str_contains($secondRender[0], ', N\'5\')')) {
+                foreach (debug_backtrace() as $frame) {
+                    if (($frame['object'] ?? null) instanceof \PHPUnit\Framework\TestCase) {
+                        $frame['object']->assertSame($firstRender, $secondRender, '!!! 2nd render is different !!!');
+                    }
+                }
+            }
+        }
+
+        return $firstRender;
+    }
+
     /**
      * Renders query template. If the template is not explicitly use "select" mode.
      */
@@ -1104,14 +1122,14 @@ class Query extends Expression
             try {
                 $this->mode('select');
 
-                return parent::render();
+                return $this->callParentRender();
             } finally {
                 $this->mode = $modeBackup;
                 $this->template = $templateBackup;
             }
         }
 
-        return parent::render();
+        return $this->callParentRender();
     }
 
     /**
