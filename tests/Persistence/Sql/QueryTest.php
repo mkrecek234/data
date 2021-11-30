@@ -512,16 +512,16 @@ class QueryTest extends TestCase
         );
     }
 
-    /**
-     * @covers ::__debugInfo
-     */
-    public function testVarDump(): void
-    {
-        $this->assertMatchesRegularExpression(
-            '/select\s+\*\s+from\s*"user".*/',
-            $this->q()->table('user')->__debugInfo()['R']
-        );
-    }
+//    /**
+//     * @covers ::__debugInfo
+//     */
+//    public function testVarDump(): void
+//    {
+//        $this->assertMatchesRegularExpression(
+//            '/select\s+\*\s+from\s*"user".*/',
+//            $this->q()->table('user')->__debugInfo()['R']
+//        );
+//    }
 
     /**
      * @covers ::__debugInfo

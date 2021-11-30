@@ -330,8 +330,8 @@ class ReferenceSqlTest extends TestCase
                 'items_name' => ['aggregate' => 'count', 'field' => 'name'],
                 'items_code' => ['aggregate' => 'count', 'field' => 'code'], // counts only not-null values
                 'items_star' => ['aggregate' => 'count'], // no field set, counts all rows with count(*)
-                'items_c:' => ['concat' => '::', 'field' => 'name'],
-                'items_c-' => ['aggregate' => $i->dsql()->groupConcat($i->expr('[name]'), '-')],
+                'items_c_' => ['concat' => '::', 'field' => 'name'],
+                'items_c__' => ['aggregate' => $i->dsql()->groupConcat($i->expr('[name]'), '-')],
                 'len' => ['aggregate' => $i->expr($buildSumWithIntegerCastSqlFx($buildLengthSqlFx('[name]')))], // TODO cast should be implicit when using "aggregate", sandpit http://sqlfiddle.com/#!17/0d2c0/3
                 'len2' => ['expr' => $buildSumWithIntegerCastSqlFx($buildLengthSqlFx('[name]'))],
                 'chicken5' => ['expr' => $buildSumWithIntegerCastSqlFx('[]'), 'args' => ['5']],
@@ -341,8 +341,8 @@ class ReferenceSqlTest extends TestCase
         $this->assertEquals(2, $ll->get('items_name')); // 2 not-null values
         $this->assertEquals(1, $ll->get('items_code')); // only 1 not-null value
         $this->assertEquals(2, $ll->get('items_star')); // 2 rows in total
-        $this->assertSame($ll->get('items_c:') === 'Pork::Chicken' ? 'Pork::Chicken' : 'Chicken::Pork', $ll->get('items_c:'));
-        $this->assertSame($ll->get('items_c-') === 'Pork-Chicken' ? 'Pork-Chicken' : 'Chicken-Pork', $ll->get('items_c-'));
+        $this->assertSame($ll->get('items_c_') === 'Pork::Chicken' ? 'Pork::Chicken' : 'Chicken::Pork', $ll->get('items_c_'));
+        $this->assertSame($ll->get('items_c__') === 'Pork-Chicken' ? 'Pork-Chicken' : 'Chicken-Pork', $ll->get('items_c__'));
         $this->assertEquals(strlen('Chicken') + strlen('Pork'), $ll->get('len'));
         $this->assertEquals(strlen('Chicken') + strlen('Pork'), $ll->get('len2'));
         $this->assertEquals(10, $ll->get('chicken5'));
@@ -351,8 +351,8 @@ class ReferenceSqlTest extends TestCase
         $this->assertEquals(0, $ll->get('items_name'));
         $this->assertEquals(0, $ll->get('items_code'));
         $this->assertEquals(0, $ll->get('items_star'));
-        $this->assertEquals('', $ll->get('items_c:'));
-        $this->assertEquals('', $ll->get('items_c-'));
+        $this->assertEquals('', $ll->get('items_c_'));
+        $this->assertEquals('', $ll->get('items_c__'));
         $this->assertNull($ll->get('len'));
         $this->assertNull($ll->get('len2'));
         $this->assertNull($ll->get('chicken5'));
