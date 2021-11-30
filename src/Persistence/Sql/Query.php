@@ -535,7 +535,9 @@ class Query extends Expression
         } else {
             if ($numArgs === 2) {
                 $value = $cond;
-                unset($cond);
+                $cond = null;
+            } elseif ($cond === null) {
+                throw new \InvalidArgumentException();
             }
 
             if (is_object($value) && !$value instanceof Expressionable) {
@@ -544,11 +546,7 @@ class Query extends Expression
                     ->addMoreInfo('value', $value);
             }
 
-            if ($numArgs === 2) {
-                $this->args[$kind][] = [$field, $value];
-            } else {
-                $this->args[$kind][] = [$field, $cond, $value];
-            }
+            $this->args[$kind][] = [$field, $cond, $value];
         }
 
         return $this;
@@ -591,12 +589,10 @@ class Query extends Expression
 
     protected function _sub_render_condition(array $row): string
     {
-        if (count($row) === 3) {
-            [$field, $cond, $value] = $row;
-        } elseif (count($row) === 2) {
-            [$field, $cond] = $row;
-        } elseif (count($row) === 1) {
+        if (count($row) === 1) {
             [$field] = $row;
+        } elseif (count($row) === 3) {
+            [$field, $cond, $value] = $row;
         } else {
             throw new \InvalidArgumentException();
         }
@@ -609,11 +605,11 @@ class Query extends Expression
         }
 
         // below are only cases when 2 or 3 arguments are passed
+        $cond = $cond; // @phpstan-ignore-line see https://github.com/phpstan/phpstan/issues/4173
+        $value = $value; // @phpstan-ignore-line
 
         // if no condition defined - set default condition
-        if (count($row) === 2) {
-            $value = $cond; // @phpstan-ignore-line see https://github.com/phpstan/phpstan/issues/4173
-
+        if ($cond === null) {
             if ($value instanceof Expressionable) {
                 $value = $value->getDsqlExpression($this);
             }
@@ -626,13 +622,13 @@ class Query extends Expression
                 $cond = '=';
             }
         } else {
-            $cond = trim(strtolower($cond)); // @phpstan-ignore-line see https://github.com/phpstan/phpstan/issues/4173
+            $cond = trim(strtolower($cond));
         }
 
         // below we can be sure that all 3 arguments has been passed
 
         // special conditions (IS | IS NOT) if value is null
-        if ($value === null) { // @phpstan-ignore-line see https://github.com/phpstan/phpstan/issues/4173
+        if ($value === null) {
             if (in_array($cond, ['=', 'is'], true)) {
                 return $field . ' is null';
             } elseif (in_array($cond, ['!=', '<>', 'not', 'is not'], true)) {
@@ -1271,6 +1267,10 @@ class Query extends Expression
      */
     public function caseWhen($when, $then)
     {
+        if (is_array($when) && count($when) === 2) {
+            $when = [$when[0], null, $when[1]];
+        }
+
         $this->args['case_when'][] = [$when, $then];
 
         return $this;

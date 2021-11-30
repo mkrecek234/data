@@ -63,11 +63,11 @@ class Query extends BaseQuery
 
     protected function _sub_render_condition(array $row): string
     {
-        if (count($row) === 2) {
-            [$field, $value] = $row;
-            $cond = '=';
-        } elseif (count($row) >= 3) {
+        if (count($row) === 3) {
             [$field, $cond, $value] = $row;
+            if ($cond === null) {
+                $cond = '=';
+            }
         } else {
             // for phpstan only, remove else block once
             // https://github.com/phpstan/phpstan/issues/6017 is fixed
@@ -76,7 +76,7 @@ class Query extends BaseQuery
             $value = null;
         }
 
-        if (count($row) >= 2 && $field instanceof Field
+        if (count($row) === 3 && $field instanceof Field
             && in_array($field->getTypeObject()->getName(), ['text', 'blob'], true)) {
             $value = $this->castStringToClobExpr($value);
 
