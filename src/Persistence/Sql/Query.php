@@ -321,7 +321,8 @@ class Query extends Expression
             }
 
             // will parameterize the value and escape if necessary
-            $s .= 'as ' . $this->consume($cursor, self::ESCAPE_IDENTIFIER_SOFT);
+            // DEBUG TODO preg_replace will break multiline strings, remove before merge
+            $s .= 'as' . "\n" . preg_replace('~^~m', '    ', $this->consume($cursor, self::ESCAPE_IDENTIFIER_SOFT));
 
             // is at least one recursive ?
             if ($recursive) {

@@ -1631,13 +1631,15 @@ class QueryTest extends TestCase
         $q2 = $this->q()
             ->with($q1, 'q1')
             ->table('q1');
-        $this->assertSame('with "q1" as (select "salary" from "salaries")' . "\n"
+        $this->assertSame('with "q1" as' . "\n"
+            . '    (select "salary" from "salaries")' . "\n"
             . 'select * from "q1"', $q2->render()[0]);
 
         $q2 = $this->q()
             ->with($q1, 'q1', null, true)
             ->table('q1');
-        $this->assertSame('with recursive "q1" as (select "salary" from "salaries")' . "\n"
+        $this->assertSame('with recursive "q1" as' . "\n"
+            . '    (select "salary" from "salaries")' . "\n"
             . 'select * from "q1"', $q2->render()[0]);
 
         $q2 = $this->q()
@@ -1645,8 +1647,11 @@ class QueryTest extends TestCase
             ->with($q1, 'q12', ['bar', 'baz'], true) // this one is recursive
             ->table('q11')
             ->table('q12');
-        $this->assertSame('with recursive "q11" ("foo", "qwe""ry") as (select "salary" from "salaries"),' . "\n"
-            . '"q12" ("bar", "baz") as (select "salary" from "salaries")' . "\n" . 'select * from "q11", "q12"', $q2->render()[0]);
+        $this->assertSame('with recursive "q11" ("foo", "qwe""ry") as' . "\n"
+            . '    (select "salary" from "salaries"),' . "\n"
+            . '"q12" ("bar", "baz") as' . "\n"
+            . '    (select "salary" from "salaries")' . "\n"
+            . 'select * from "q11", "q12"', $q2->render()[0]);
 
         // now test some more useful reql life query
         $quotes = $this->q()
@@ -1670,9 +1675,10 @@ class QueryTest extends TestCase
             ->field('q.quoted')
             ->field('i.invoiced');
         $this->assertSame(
-            'with '
-                . '"q" ("emp", "quoted") as (select "emp_id", sum("total_net") from "quotes" group by "emp_id"),' . "\n"
-                . '"i" ("emp", "invoiced") as (select "emp_id", sum("total_net") from "invoices" group by "emp_id")' . "\n"
+            'with "q" ("emp", "quoted") as' . "\n"
+            . '    (select "emp_id", sum("total_net") from "quotes" group by "emp_id"),' . "\n"
+            . '"i" ("emp", "invoiced") as' . "\n"
+            . '    (select "emp_id", sum("total_net") from "invoices" group by "emp_id")' . "\n"
             . 'select "name", "salary", "q"."quoted", "i"."invoiced" '
             . 'from "employees" '
                 . 'left join "q" on "q"."emp" = "employees"."id" '
