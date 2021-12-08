@@ -449,6 +449,7 @@ class Model implements \IteratorAggregate
         foreach (array_keys($this->getModelOnlyProperties()) as $name) {
             unset($model->{$name});
         }
+        $model->userActions = [];
 
         return $model;
     }
